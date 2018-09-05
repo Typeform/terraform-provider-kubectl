@@ -86,10 +86,22 @@
   version = "v1.1.0"
 
 [[projects]]
+  name = "github.com/ghodss/yaml"
+  packages = ["."]
+  revision = "0ca9ea5df5451ffdf184b4428c902747c2c11cd7"
+  version = "v1.0.0"
+
+[[projects]]
   name = "github.com/go-ini/ini"
   packages = ["."]
   revision = "5cf292cae48347c2490ac1a58fe36735fb78df7e"
   version = "v1.38.2"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/golang/glog"
+  packages = ["."]
+  revision = "23def4e6c14b4da8ac2ed8007337bc5eb5007998"
 
 [[projects]]
   name = "github.com/golang/protobuf"
@@ -249,6 +261,12 @@
   name = "github.com/jmespath/go-jmespath"
   packages = ["."]
   revision = "0b12d6b5"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/kubernetes/apimachinery"
+  packages = ["pkg/util/yaml"]
+  revision = "6429050ef506887d121f3e7306e894f8900d8a63"
 
 [[projects]]
   name = "github.com/mattn/go-isatty"
@@ -515,6 +533,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "ae9b4ab62787ae1a3a6b8437a2c1328694712a08f74ad22504a3f8e3316e488c"
+  inputs-digest = "44211e8509fef42b9011138ba2d191dcb38eaf64c4e013b4cfb997c9fabbcc25"
   solver-name = "gps-cdcl"
   solver-version = 1

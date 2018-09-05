@@ -1,6 +1,6 @@
 # Kubectl Terraform Provider
 
-The k8s Kubectl provider enables Terraform to deploy Kubernetes resources. Unlike the [official Kubernetes provider][kubernetes-provider] it handles raw manifests, leveraging `kubectl` directly to allow developers to work with any Kubernetes resource natively.
+The kubectl Kubectl provider enables Terraform to deploy Kubernetes resources. Unlike the [official Kubernetes provider][kubernetes-provider] it handles raw manifests, leveraging `kubectl` directly to allow developers to work with any Kubernetes resource natively.
 
 ## Usage
 
@@ -14,21 +14,21 @@ Register the plugin in `~/.terraformrc`:
 
 ```hcl
 providers {
-  k8s = "/$GOPATH/bin/terraform-provider-kubectl"
+  kubectl = "/$GOPATH/bin/terraform-provider-kubectl"
 }
 ```
 
 The provider takes optional configuration to specify a `kubeconfig` file:
 
 ```hcl
-provider "k8s" {
+provider "kubectl" {
   kubeconfig     = "/path/to/kubeconfig"
   kubecontext    = <context within kubeconfig> #optional
 }
 
 or
 
-provider "k8s" {
+provider "kubectl" {
   kubecontent = <base64 encoded kubeconfig>
   kubecontext    = <context within kubeconfig> #optional
 }

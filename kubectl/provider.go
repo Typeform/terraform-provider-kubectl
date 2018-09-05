@@ -27,7 +27,7 @@ func Provider() *schema.Provider {
 			},
 		},
 		ResourcesMap: map[string]*schema.Resource{
-			"k8s_manifest": resourceManifest(),
+			"kubectl_manifest": resourceManifest(),
 		},
 		ConfigureFunc: func(d *schema.ResourceData) (interface{}, error) {
 			return &Config{

@@ -1,41 +1,64 @@
 package resource
 
 import (
-	"bufio"
 	"bytes"
-	"fmt"
-	"regexp"
+	yamlReader "github.com/kubernetes/apimachinery/pkg/util/yaml"
+	"gopkg.in/yaml.v2"
+	"io"
+	"io/ioutil"
 	"strings"
 )
 
-func SplitYAMLDocument(multiResourceDoc string) []string {
-	emptyLINE := regexp.MustCompile("^\\s*$[\r\n]*")
+func hasKind(resource yaml.MapSlice) bool {
 
-	yamlSep := regexp.MustCompile(`^---\s*$`)
+	for _, item := range resource {
+		key, ok := item.Key.(string)
+		if !ok {
+			continue
+		}
+		if key == "kind" {
+			return true
+		}
+	}
+	return false
+}
+
+func SplitYAMLDocument(multiResourceDoc string) ([]string, error) {
+
+	yamlReaderCloser := ioutil.NopCloser(strings.NewReader(multiResourceDoc))
+	dec := yamlReader.NewDocumentDecoder(yamlReaderCloser)
+
 	docs := make([]string, 0)
-	var buffer bytes.Buffer
+	buffer := bytes.NewBuffer(make([]byte, 0))
+	part := make([]byte, 4092)
 
-	scanner := bufio.NewScanner(strings.NewReader(multiResourceDoc))
+	for {
+		count, err := dec.Read(part)
 
-	for scanner.Scan() {
-		line := scanner.Text()
-		if emptyLINE.MatchString(line) {
+		if err == io.EOF {
+			break
+		}
+		if err == io.ErrShortBuffer {
+			buffer.Write(part[:count])
 			continue
 		}
 
-		if yamlSep.MatchString(line) {
-			currentDoc := buffer.String()
-			buffer.Reset()
-			if currentDoc != "" {
-				docs = append(docs, currentDoc)
-			}
+		buffer.Write(part[:count])
+		res := yaml.MapSlice{}
+		yaml.Unmarshal(buffer.Bytes(), &res)
+
+		if !hasKind(res) {
+			buffer = bytes.NewBuffer(make([]byte, 0))
+			continue
 		}
-		buffer.WriteString(fmt.Sprintf("%s\n", line))
+		out, err := yaml.Marshal(&res)
+		if err != nil {
+			return nil, err
+		}
+
+		docs = append(docs, string(out))
+		buffer = bytes.NewBuffer(make([]byte, 0))
 	}
 
-	lastDoc := buffer.String()
-	if lastDoc != "" {
-		docs = append(docs, lastDoc)
-	}
-	return docs
+	return docs, nil
 }

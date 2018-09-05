@@ -81,7 +81,10 @@ func withCLIConfig(resHandler resourceHandler) func(d *schema.ResourceData, m in
 //		- for each resource it creates it retrieves it and updates the state with its uid
 func resourceManifestCreate(d *schema.ResourceData, m interface{}, kubectlCLIConfig *KubectlConfig) error {
 
-	manifestResources := resource.SplitYAMLDocument(d.Get("content").(string))
+	manifestResources, err := resource.SplitYAMLDocument(d.Get("content").(string))
+	if err != nil {
+		return err
+	}
 	tfResources, err := updateResources(manifestResources, kubectlCLIConfig)
 	if err != nil {
 		return err
@@ -109,7 +112,10 @@ func resourceManifestUpdate(d *schema.ResourceData, m interface{}, kubectlCLICon
 
 		tfOldResources := d.Get("resources").(*schema.Set)
 
-		manifestResources := resource.SplitYAMLDocument(d.Get("content").(string))
+		manifestResources, err := resource.SplitYAMLDocument(d.Get("content").(string))
+		if err != nil {
+			return err
+		}
 		tfResources, err := updateResources(manifestResources, kubectlCLIConfig)
 		if err != nil {
 			return err
@@ -143,7 +149,7 @@ func resourceManifestRead(d *schema.ResourceData, m interface{}, kubectlCLIConfi
 	tfResources := d.Get("resources").(*schema.Set)
 	tfResourcesList := tfResources.List()
 
-	k8sResources := schema.NewSet(HashResource, []interface{}{})
+	kubectlResources := schema.NewSet(HashResource, []interface{}{})
 
 	for _, tfResource := range tfResourcesList {
 
@@ -175,11 +181,11 @@ func resourceManifestRead(d *schema.ResourceData, m interface{}, kubectlCLIConfi
 			return err
 		}
 		if strings.TrimSpace(stdout.String()) != "" {
-			k8sResources.Add(tfResource)
+			kubectlResources.Add(tfResource)
 		}
 	}
 
-	commonResources := setIntersection(tfResources, k8sResources)
+	commonResources := setIntersection(tfResources, kubectlResources)
 
 	err := d.Set("resources", commonResources)
 	if err != nil {

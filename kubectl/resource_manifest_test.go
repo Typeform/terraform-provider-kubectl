@@ -73,33 +73,33 @@ func init() {
 	contentUpdated := re.ReplaceAllString(kubernetesResourceAfterUpdate, `\n`)
 
 	homedir := getEnv("HOME", "˜")
-	kubeconfig := getEnv("TP_K8S_KUBECONFIG", path.Join(homedir, ".kube/config"))
-	kubecontext := getEnv("TP_K8S_KUBECONTEXT", "minikube")
+	kubeconfig := getEnv("TP_KUBECTL_KUBECONFIG", path.Join(homedir, ".kube/config"))
+	kubecontext := getEnv("TP_KUBECTL_KUBECONTEXT", "minikube")
 
 	manifestResource = fmt.Sprintf(`
-	provider "k8s" {
+	provider "kubectl" {
 	  kubeconfig  = "%s"
 	  kubecontext = "%s"
 	}
 
-	resource "k8s_manifest" "config-auth" {
+	resource "kubectl_manifest" "config-auth" {
 	  content = "%s"
 	  name = "config-auth"
 	}`, kubeconfig, kubecontext, content)
 
 	manifestResourceUpdate = fmt.Sprintf(`
-	provider "k8s" {
+	provider "kubectl" {
 	  kubeconfig  = "%s"
 	  kubecontext = "%s"
 	}
 
-	resource "k8s_manifest" "config-auth" {
+	resource "kubectl_manifest" "config-auth" {
 	  content = "%s"
 	  name = "config-auth"
 	}`, kubeconfig, kubecontext, contentUpdated)
 
 	testAccProviders = map[string]terraform.ResourceProvider{
-		"k8s": testAccProvider,
+		"kubectl": testAccProvider,
 	}
 }
 
@@ -117,8 +117,8 @@ func TestAccManifest(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckNamespaceExists("acceptance-test"),
 					testManifestResourcesExist("pod", "test=acceptance", "acceptance-test", 1),
-					resource.TestCheckResourceAttr("k8s_manifest.config-auth", "name", "config-auth"),
-					resource.TestCheckResourceAttr("k8s_manifest.config-auth", "resources.#", "2"),
+					resource.TestCheckResourceAttr("kubectl_manifest.config-auth", "name", "config-auth"),
+					resource.TestCheckResourceAttr("kubectl_manifest.config-auth", "resources.#", "2"),
 				),
 			},
 
@@ -127,7 +127,7 @@ func TestAccManifest(t *testing.T) {
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckNamespaceExists("acceptance-test"),
 					testManifestResourcesExist("pod", "test=acceptance", "acceptance-test", 0),
-					resource.TestCheckResourceAttr("k8s_manifest.config-auth", "resources.#", "1"),
+					resource.TestCheckResourceAttr("kubectl_manifest.config-auth", "resources.#", "1"),
 				),
 			},
 		},
@@ -170,9 +170,9 @@ func testManifestResourcesExist(kind, label, namespace string, items int) resour
 
 	return func(s *terraform.State) (err error) {
 
-		_, ok := s.RootModule().Resources["k8s_manifest.config-auth"]
+		_, ok := s.RootModule().Resources["kubectl_manifest.config-auth"]
 		if !ok {
-			return fmt.Errorf("Resource %s not found in terraform state", "k8s_manifest.config-auth")
+			return fmt.Errorf("Resource %s not found in terraform state", "kubectl_manifest.config-auth")
 		}
 
 		//id := rs.Primary.ID

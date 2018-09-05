@@ -2,6 +2,7 @@ package kubectl
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -268,7 +269,8 @@ func updateResources(manifestResources []string, kubectlCLIConfig *KubectlConfig
 			return nil, fmt.Errorf("could not parse uid from response %s", stdout.String())
 		}
 
-		tfResources.Add(map[string]interface{}{"uid": uid, "selflink": selflink, "content": manifestResource})
+		manifestResourceBase64 := base64.StdEncoding.EncodeToString([]byte(manifestResource))
+		tfResources.Add(map[string]interface{}{"uid": uid, "selflink": selflink, "content": manifestResourceBase64})
 	}
 
 	return tfResources, nil

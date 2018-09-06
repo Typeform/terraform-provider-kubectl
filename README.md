@@ -2,6 +2,29 @@
 
 The kubectl Kubectl provider enables Terraform to deploy Kubernetes resources. Unlike the [official Kubernetes provider][kubernetes-provider] it handles raw manifests, leveraging `kubectl` directly to allow developers to work with any Kubernetes resource natively.
 
+## Running tests
+
+
+### Unit testing
+
+This project uses `ginkgo` and `gomega` as unit test framework. Just run:
+```
+ginkgo -r
+```
+to execute them
+
+### Acceptance tests
+
+Acceptance tests are provided for the `kubectl_manifest` resource. They can be executed with:
+```
+TF_ACC=1 go test kubectl/resource_manifest_test.go -v  -timeout 180m
+```
+
+by default they rely on a local `minikube` deployment. The kubernetes cluster endpoint is adjustable by configuring the following env variables:
+
+-  TP_KUBECTL_KUBECONFIG, default:  "˜/.kube/config"
+-  TP_KUBECTL_KUBECONTEXT", default: "minikube"
+
 ## Usage
 
 Use `go get` to install the provider:

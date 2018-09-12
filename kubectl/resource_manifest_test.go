@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"strconv"
 	"testing"
 	"time"
 
@@ -76,27 +77,21 @@ func init() {
 	kubeconfig := getEnv("TP_KUBECTL_KUBECONFIG", path.Join(homedir, ".kube/config"))
 	kubecontext := getEnv("TP_KUBECTL_KUBECONTEXT", "minikube")
 
-	manifestResource = fmt.Sprintf(`
+	manifestResourceTemplate := (`
 	provider "kubectl" {
 	  kubeconfig  = "%s"
 	  kubecontext = "%s"
 	}
 
-	resource "kubectl_manifest" "config-auth" {
+	resource "kubectl_manifest" "rss-site" {
 	  content = "%s"
-	  name = "config-auth"
-	}`, kubeconfig, kubecontext, content)
+	  name = "rss-site"
+	}`)
 
-	manifestResourceUpdate = fmt.Sprintf(`
-	provider "kubectl" {
-	  kubeconfig  = "%s"
-	  kubecontext = "%s"
-	}
-
-	resource "kubectl_manifest" "config-auth" {
-	  content = "%s"
-	  name = "config-auth"
-	}`, kubeconfig, kubecontext, contentUpdated)
+	manifestResource = fmt.Sprintf(manifestResourceTemplate, kubeconfig,
+		kubecontext, content)
+	manifestResourceUpdate = fmt.Sprintf(manifestResourceTemplate, kubeconfig,
+		kubecontext, contentUpdated)
 
 	testAccProviders = map[string]terraform.ResourceProvider{
 		"kubectl": testAccProvider,
@@ -107,27 +102,41 @@ func TestAccManifest(t *testing.T) {
 
 	resource.Test(t, resource.TestCase{
 
-		PreCheck:     func() { testAccPreCheck(t) },
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckManifestResourceDestroyed("pod", "test=acceptance", "acceptance-test"),
+		PreCheck:  func() { testAccPreCheck(t) },
+		Providers: testAccProviders,
+		CheckDestroy: testAccCheckManifestResourceDestroyed("pod",
+			"test=acceptance", "acceptance-test",
+		),
 		Steps: []resource.TestStep{
 
 			resource.TestStep{
 				Config: manifestResource,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResourceExistsWithName("namespace", "acceptance-test", ""),
-					testManifestResourceItemsExistWithLabel("pod", "test=acceptance", "acceptance-test", 1),
-					resource.TestCheckResourceAttr("kubectl_manifest.config-auth", "name", "config-auth"),
-					resource.TestCheckResourceAttr("kubectl_manifest.config-auth", "resources.#", "2"),
+					testAccCheckResourceExistsWithName("Namespace",
+						"acceptance-test", "",
+					),
+					testManifestResourceItemsExistWithLabel("pod",
+						"test=acceptance", "acceptance-test", 1,
+					),
+					resource.TestCheckResourceAttr("kubectl_manifest.rss-site",
+						"name", "rss-site",
+					),
+					resource.TestCheckResourceAttr("kubectl_manifest.rss-site",
+						"resources.#", "2",
+					),
 				),
 			},
 
 			resource.TestStep{
 				Config: manifestResourceUpdate,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckResourceExistsWithName("namespace", "acceptance-test", ""),
+					testAccCheckResourceExistsWithName("Namespace",
+						"acceptance-test", "",
+					),
 					testManifestResourceItemsExistWithLabel("pod", "test=acceptance", "acceptance-test", 0),
-					resource.TestCheckResourceAttr("kubectl_manifest.config-auth", "resources.#", "1"),
+					resource.TestCheckResourceAttr("kubectl_manifest.rss-site",
+						"resources.#", "1",
+					),
 				),
 			},
 		},
@@ -138,94 +147,122 @@ func testAccPreCheck(t *testing.T) {
 
 }
 
-func testAccCheckManifestResourceDestroyed(kind, label, namespace string) resource.TestCheckFunc {
+func testAccCheckManifestResourceDestroyed(kind, label, namespace string,
+) resource.TestCheckFunc {
 
 	return func(s *terraform.State) (err error) {
 		kubectlConfig, _ := NewKubectlConfig(testAccProvider.Meta())
 
-		res, _ := resourceManifestRetrieveByLabel(kind, label, namespace, kubectlConfig)
+		res, _ := resourceManifestRetrieveByLabel(kind, label, namespace,
+			kubectlConfig,
+		)
 
-		for attempts := 0; len(res.Items) != 0; attempts++ {
-			res, _ = resourceManifestRetrieveByLabel(kind, label, namespace, kubectlConfig)
+		var attempts int
+		for attempts = 0; attempts <= maxNumberOfAttempts; attempts++ {
+			res, _ = resourceManifestRetrieveByLabel(kind, label, namespace,
+				kubectlConfig,
+			)
 
-			if attempts > maxNumberOfAttempts {
-				return fmt.Errorf("Resource of kind %s with label %s still does not exist after %d attempts of retrieving it\n", kind, label, attempts)
+			if len(res.Items) == 0 {
+				break
 			}
 			time.Sleep(10 * time.Second)
 		}
-
-		return nil
-	}
-}
-
-func testAccCheckResourceExistsWithName(kind, name, namespace string) resource.TestCheckFunc {
-
-	return func(s *terraform.State) (err error) {
-
-		kubectlConfig, _ := NewKubectlConfig(testAccProvider.Meta())
-		res, _ := resourceManifestRetrieveByName(kind, name, namespace, kubectlConfig)
-
-		for attempts := 0; res.Kind == kind; attempts++ {
-			res, _ = resourceManifestRetrieveByName(kind, name, namespace, kubectlConfig)
-
-			if attempts > maxNumberOfAttempts {
-				return fmt.Errorf("Resource of kind %s with name %s still exists after %d attempts of retrieving it\n", kind, name, attempts)
-			}
-			time.Sleep(10 * time.Second)
+		if attempts > maxNumberOfAttempts {
+			return fmt.Errorf("Resource of kind %s with label %s still does not exist after %d attempts of retrieving it\n", kind, label, attempts)
 		}
 		return nil
 	}
 }
 
-func testAccCheckResourceItemsExistWithName(kind, name, namespace string, items int) resource.TestCheckFunc {
+func testAccCheckResourceExistsWithName(kind, name, namespace string,
+) resource.TestCheckFunc {
 
 	return func(s *terraform.State) (err error) {
 
 		kubectlConfig, _ := NewKubectlConfig(testAccProvider.Meta())
-		res, _ := resourceManifestRetrieveByName(kind, name, namespace, kubectlConfig)
+		res, _ := resourceManifestRetrieveByName(kind, name, namespace,
+			kubectlConfig,
+		)
 
-		for attempts := 0; len(res.Items) != items; attempts++ {
-			res, _ = resourceManifestRetrieveByName(kind, name, namespace, kubectlConfig)
+		var attempts int
 
-			if attempts > maxNumberOfAttempts {
-				return fmt.Errorf("Resource of kind %s with name %s still exists after %d attempts of retrieving it\n", kind, name, attempts)
+		for attempts = 0; attempts <= maxNumberOfAttempts; attempts++ {
+			res, _ = resourceManifestRetrieveByName(kind, name, namespace,
+				kubectlConfig,
+			)
+			if res.Kind == kind {
+				break
 			}
 			time.Sleep(10 * time.Second)
+		}
+
+		if attempts > maxNumberOfAttempts {
+			return fmt.Errorf("Resource of kind %s with name %s still exists after %d attempts of retrieving it\n", kind, name, attempts)
 		}
 		return nil
 	}
 }
 
-func testManifestResourceItemsExistWithLabel(kind, label, namespace string, items int) resource.TestCheckFunc {
+func testManifestResourceItemsExistWithLabel(kind, label, namespace string,
+	items int) resource.TestCheckFunc {
 
 	return func(s *terraform.State) (err error) {
 
-		_, ok := s.RootModule().Resources["kubectl_manifest.config-auth"]
+		rs, ok := s.RootModule().Resources["kubectl_manifest.rss-site"]
 		if !ok {
-			return fmt.Errorf("Resource %s not found in terraform state", "kubectl_manifest.config-auth")
+			return fmt.Errorf("Resource %s not found in terraform state",
+				"kubectl_manifest.rss-site")
 		}
 
-		//id := rs.Primary.ID
-		//attributes := rs.Primary.Attributes
+		id := rs.Primary.ID
+		if id != "rss-site" {
+			return fmt.Errorf("Resource should have id: %s", "rss-site")
+		}
+
+		attributes := rs.Primary.Attributes
 
 		kubectlConfig, _ := NewKubectlConfig(testAccProvider.Meta())
 
-		res, _ := resourceManifestRetrieveByLabel(kind, label, namespace, kubectlConfig)
+		res := &KubectlResponse{}
+		var attempts int
 
-		for attempts := 0; len(res.Items) != items; attempts++ {
-			res, _ = resourceManifestRetrieveByLabel(kind, label, namespace, kubectlConfig)
+		for attempts = 0; attempts <= maxNumberOfAttempts; attempts++ {
 
-			if attempts > maxNumberOfAttempts {
-				return fmt.Errorf("Resource of kind %s with label %s still exists after %d attempts of deleting it\n", kind, label, attempts)
+			res, _ = resourceManifestRetrieveByLabel(kind, label, namespace,
+				kubectlConfig,
+			)
+
+			if len(res.Items) == items {
+				break
 			}
 			time.Sleep(10 * time.Second)
 		}
 
+		if attempts > maxNumberOfAttempts {
+			return fmt.Errorf("Resource of kind %s with label %s still exists after %d attempts of deleting it\n", kind, label, attempts)
+		} else if items > 0 {
+			setId := strconv.Itoa(schema.HashString(res.Items[0].Metadata.UID))
+
+			tfUID := attributes["resources."+setId+".uid"]
+			k8sUID := res.Items[0].Metadata.UID
+
+			tfSelflink := attributes["resources."+setId+".selflink"]
+			k8sSelflink := res.Items[0].Metadata.Selflink
+
+			if tfUID != k8sUID {
+				return fmt.Errorf("Expected uid %s [TF STATE} found %s [K8S]", tfUID, k8sUID)
+			}
+			if tfSelflink != k8sSelflink {
+				return fmt.Errorf("Expected selflink %s [TF STATE} found %s [K8S]", tfSelflink, k8sSelflink)
+			}
+		}
 		return nil
 	}
 }
 
-func resourceManifestRetrieveByName(resType, resName, namespace string, kubectlCLIConfig *KubectlConfig) (*KubectlResponse, error) {
+func resourceManifestRetrieveByName(resType, resName, namespace string,
+	kubectlCLIConfig *KubectlConfig) (*KubectlResponse, error) {
 
 	args := kubectlCLIConfig.RenderArgs("get", resType, resName, "-o", "json")
 	if namespace != "" {
@@ -244,7 +281,8 @@ func resourceManifestRetrieveByName(resType, resName, namespace string, kubectlC
 	return res, nil
 }
 
-func resourceManifestRetrieveByLabel(resType, label, namespace string, kubectlCLIConfig *KubectlConfig) (*KubectlResponse, error) {
+func resourceManifestRetrieveByLabel(resType, label, namespace string,
+	kubectlCLIConfig *KubectlConfig) (*KubectlResponse, error) {
 
 	args := kubectlCLIConfig.RenderArgs("get", resType, "-l", label, "-o", "json")
 	if namespace != "" {

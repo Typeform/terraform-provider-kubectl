@@ -17,7 +17,7 @@ to execute them
 
 Acceptance tests are provided for the `kubectl_manifest` resource. They can be executed with:
 ```
-TF_ACC=1 go test kubectl/resource_manifest_test.go -v  -timeout 180m
+TF_ACC=1 go test kubectl/resource_*_test.go -v  -timeout 180m
 ```
 
 by default they rely on a local `minikube` deployment. The kubernetes cluster endpoint is adjustable by configuring the following env variables:

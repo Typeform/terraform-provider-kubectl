@@ -39,6 +39,7 @@ func resourceManifest() *schema.Resource {
 			"resources": {
 				Type:     schema.TypeSet,
 				Computed: true,
+				Set:      HashResource,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"selflink": &schema.Schema{
@@ -71,6 +72,7 @@ func HashResource(v interface{}) int {
 
 	resource := v.(map[string]interface{})
 	uuid := resource["uid"]
+
 	return schema.HashString(uuid)
 }
 
@@ -81,7 +83,7 @@ func withExistsCLIConfig(existsHandler existsHandler) func(
 		kubectlCLIConfig, err := NewKubectlConfig(m)
 		if err != nil {
 			return false, fmt.Errorf(
-				"error while processing kubeconfig file: %s", err
+				"error while processing kubeconfig file: %s", err,
 			)
 		}
 		defer kubectlCLIConfig.Cleanup()
@@ -215,7 +217,6 @@ func resourceManifestRead(d *schema.ResourceData, m interface{},
 		if !ok {
 			return fmt.Errorf("invalid resource id: %s", selflink)
 		}
-
 		args := []string{"get", "--ignore-not-found", resource}
 		if namespace != "" {
 			args = append(args, "-n", namespace)
@@ -243,6 +244,7 @@ func resourceManifestRead(d *schema.ResourceData, m interface{},
 	if commonResources.Len() < 1 {
 		d.SetId("")
 	}
+
 	return nil
 }
 
@@ -373,13 +375,13 @@ func updateResources(manifestResources []string, namespace string,
 		selflink := data.Items[0].Metadata.Selflink
 		if selflink == "" {
 			return nil, fmt.Errorf("could not parse self-link from response %s",
-				stdout.String()
+				stdout.String(),
 			)
 		}
 		uid := data.Items[0].Metadata.UID
 		if uid == "" {
 			return nil, fmt.Errorf("could not parse uid from response %s",
-				stdout.String()
+				stdout.String(),
 			)
 		}
 

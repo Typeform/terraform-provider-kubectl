@@ -2,6 +2,7 @@ package kubectl
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -26,6 +27,10 @@ func resourceManifest() *schema.Resource {
 				Type:      schema.TypeString,
 				Required:  true,
 				Sensitive: true,
+				StateFunc: func(val interface{}) string {
+					contentHash := sha256.Sum256([]byte(val.(string)))
+					return fmt.Sprintf("%x", contentHash)
+				},
 			},
 			"name": &schema.Schema{
 				Type:     schema.TypeString,

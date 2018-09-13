@@ -151,7 +151,7 @@ func testAccCheckManifestResourceDestroyed(kind, label, namespace string,
 ) resource.TestCheckFunc {
 
 	return func(s *terraform.State) (err error) {
-		kubectlConfig, _ := NewKubectlConfig(testAccProvider.Meta())
+		kubectlConfig, _ := testAccProvider.Meta().(*KubectlConfig)
 
 		res, _ := resourceManifestRetrieveByLabel(kind, label, namespace,
 			kubectlConfig,
@@ -180,7 +180,7 @@ func testAccCheckResourceExistsWithName(kind, name, namespace string,
 
 	return func(s *terraform.State) (err error) {
 
-		kubectlConfig, _ := NewKubectlConfig(testAccProvider.Meta())
+		kubectlConfig, _ := testAccProvider.Meta().(*KubectlConfig)
 		res, _ := resourceManifestRetrieveByName(kind, name, namespace,
 			kubectlConfig,
 		)
@@ -222,7 +222,7 @@ func testManifestResourceItemsExistWithLabel(kind, label, namespace string,
 
 		attributes := rs.Primary.Attributes
 
-		kubectlConfig, _ := NewKubectlConfig(testAccProvider.Meta())
+		kubectlConfig, _ := testAccProvider.Meta().(*KubectlConfig)
 
 		res := &KubectlResponse{}
 		var attempts int

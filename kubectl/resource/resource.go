@@ -3,14 +3,14 @@ package resource
 import ()
 
 type KubectlResponse struct {
-	Items []KubectlItem `json: "items"`
-	Kind  string        `json: "kind"`
+	Items []KubectlItem `json:"items"`
+	Kind  string        `json:"kind"`
 }
 
 type KubectlItem struct {
-	Kind     string `json: "kind"`
+	Kind     string `json:"kind"`
 	Metadata struct {
 		Selflink string `json:"selflink"`
-		UID      string `json: "uid"`
+		UID      string `json:"uid"`
 	} `json:"metadata"`
 }

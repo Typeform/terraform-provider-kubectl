@@ -16,11 +16,11 @@ import (
 
 func resourceManifest() *schema.Resource {
 	return &schema.Resource{
-		Create: withCLIConfig(resourceManifestCreate),
-		Read:   withCLIConfig(resourceManifestRead),
-		Exists: withExistsCLIConfig(resourceManifestExists),
-		Update: withCLIConfig(resourceManifestUpdate),
-		Delete: withCLIConfig(resourceManifestDelete),
+		Create: resourceManifestCreate,
+		Read:   resourceManifestRead,
+		Exists: resourceManifestExists,
+		Update: resourceManifestUpdate,
+		Delete: resourceManifestDelete,
 
 		Schema: map[string]*schema.Schema{
 			"content": &schema.Schema{
@@ -66,13 +66,6 @@ func resourceManifest() *schema.Resource {
 	}
 }
 
-type existsHandler func(d *schema.ResourceData, m interface{},
-	kubectlCLIConfig *KubectlConfig) (bool, error)
-
-type resourceHandler func(d *schema.ResourceData, m interface{},
-	kubectlCLIConfig *KubectlConfig) error
-type resourceHandlerWithCLI func(d *schema.ResourceData, m interface{}) error
-
 func HashResource(v interface{}) int {
 
 	resource := v.(map[string]interface{})
@@ -81,44 +74,18 @@ func HashResource(v interface{}) int {
 	return schema.HashString(uuid)
 }
 
-func withExistsCLIConfig(existsHandler existsHandler) func(
-	d *schema.ResourceData, m interface{}) (bool, error) {
-
-	return func(d *schema.ResourceData, m interface{}) (bool, error) {
-		kubectlCLIConfig, err := NewKubectlConfig(m)
-		if err != nil {
-			return false, fmt.Errorf(
-				"error while processing kubeconfig file: %s", err,
-			)
-		}
-		defer kubectlCLIConfig.Cleanup()
-
-		return existsHandler(d, m, kubectlCLIConfig)
-	}
-}
-
-func withCLIConfig(resHandler resourceHandler) func(
-	d *schema.ResourceData, m interface{}) error {
-
-	return func(d *schema.ResourceData, m interface{}) error {
-		kubectlCLIConfig, err := NewKubectlConfig(m)
-		if err != nil {
-			return fmt.Errorf("error while processing kubeconfig file: %s", err)
-		}
-		defer kubectlCLIConfig.Cleanup()
-
-		return resHandler(d, m, kubectlCLIConfig)
-	}
-}
-
 // The steps involved in creating a resource are:
-// 	1. Splitting the yaml document in multiple resources
+// 	1. Splitting the yaml manifest document in multiple resources
 //  2. Update the resources:
-//		- it applies any resource present in the schema (re-applies if needed)
-//		- for each resource it creates it retrieves it and updates the state with its uid
-func resourceManifestCreate(d *schema.ResourceData, m interface{},
-	kubectlCLIConfig *KubectlConfig) error {
+//		For each resource:
+//		1. it applies the manifest (re-applies if needed)
+//		2. fetches the newly created resource
+//		3. parses response to get `selflink` and `uid`
+//		4. encodes the content in base64
+//		5. adds the created resources to the terraform state
+func resourceManifestCreate(d *schema.ResourceData, m interface{}) error {
 
+	kubectlCLIConfig := m.(*KubectlConfig)
 	var namespace string
 
 	if nm, ok := d.GetOk("namespace"); ok {
@@ -152,9 +119,9 @@ func resourceManifestCreate(d *schema.ResourceData, m interface{},
 //		- for each resource it creates it retrieves it and updates the state with its uid
 //  3. Deletes the resources which where present in the old state but are not anymore
 //
-func resourceManifestUpdate(d *schema.ResourceData, m interface{},
-	kubectlCLIConfig *KubectlConfig) error {
+func resourceManifestUpdate(d *schema.ResourceData, m interface{}) error {
 
+	kubectlCLIConfig := m.(*KubectlConfig)
 	if d.HasChange("content") {
 
 		var namespace string
@@ -191,8 +158,12 @@ func resourceManifestUpdate(d *schema.ResourceData, m interface{},
 }
 
 // Simply deletes all the resources in the manifest one by one
-func resourceManifestDelete(d *schema.ResourceData, m interface{},
-	kubectlCLIConfig *KubectlConfig) error {
+//	1. gets the resources from the terraform state
+//
+//	for each of the retrieved resources:
+//	- delete the resource
+func resourceManifestDelete(d *schema.ResourceData, m interface{}) error {
+	kubectlCLIConfig := m.(*KubectlConfig)
 
 	toDelete := d.Get("resources").(*schema.Set)
 	err := deleteResources(toDelete, kubectlCLIConfig)
@@ -200,8 +171,14 @@ func resourceManifestDelete(d *schema.ResourceData, m interface{},
 }
 
 // Reads the resources using the resource handle provided
-func resourceManifestRead(d *schema.ResourceData, m interface{},
-	kubectlCLIConfig *KubectlConfig) error {
+//
+// for each resource in the terraform state:
+// - tries to match the resource with a live k8s resource
+// - builds the intersection beetween state and live resources
+// - if the intersaction is empty sets resource id to "" (will force create)
+func resourceManifestRead(d *schema.ResourceData, m interface{}) error {
+
+	kubectlCLIConfig := m.(*KubectlConfig)
 
 	tfResources := d.Get("resources").(*schema.Set)
 	tfResourcesList := tfResources.List()
@@ -254,9 +231,12 @@ func resourceManifestRead(d *schema.ResourceData, m interface{},
 }
 
 // Tries to fetch at least one of the resources contained in the state.
-// Exits upon finding the first
-func resourceManifestExists(d *schema.ResourceData, m interface{},
-	kubectlCLIConfig *KubectlConfig) (bool, error) {
+//
+// Works as a read, but just returns successfully if any resource present in the
+// terraform state is also present in k8s
+func resourceManifestExists(d *schema.ResourceData, m interface{}) (bool, error) {
+
+	kubectlCLIConfig := m.(*KubectlConfig)
 
 	tfResources := d.Get("resources").(*schema.Set)
 	tfResourcesList := tfResources.List()

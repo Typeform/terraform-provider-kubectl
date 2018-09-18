@@ -133,7 +133,8 @@ func TestAccManifest(t *testing.T) {
 					testAccCheckResourceExistsWithName("Namespace",
 						"acceptance-test", "",
 					),
-					testManifestResourceItemsExistWithLabel("pod", "test=acceptance", "acceptance-test", 0),
+					testManifestResourceItemsExistWithLabel(
+						"pod", "test=acceptance", "acceptance-test", 0),
 					resource.TestCheckResourceAttr("kubectl_manifest.rss-site",
 						"resources.#", "1",
 					),
@@ -151,7 +152,8 @@ func testAccCheckManifestResourceDestroyed(kind, label, namespace string,
 ) resource.TestCheckFunc {
 
 	return func(s *terraform.State) (err error) {
-		kubectlConfig, _ := testAccProvider.Meta().(*KubectlConfig)
+		config := testAccProvider.Meta().(*Config)
+		kubectlConfig, _ := NewKubectlConfig(config)
 
 		res, _ := resourceManifestRetrieveByLabel(kind, label, namespace,
 			kubectlConfig,
@@ -179,8 +181,9 @@ func testAccCheckResourceExistsWithName(kind, name, namespace string,
 ) resource.TestCheckFunc {
 
 	return func(s *terraform.State) (err error) {
+		config := testAccProvider.Meta().(*Config)
+		kubectlConfig, _ := NewKubectlConfig(config)
 
-		kubectlConfig, _ := testAccProvider.Meta().(*KubectlConfig)
 		res, _ := resourceManifestRetrieveByName(kind, name, namespace,
 			kubectlConfig,
 		)
@@ -222,7 +225,8 @@ func testManifestResourceItemsExistWithLabel(kind, label, namespace string,
 
 		attributes := rs.Primary.Attributes
 
-		kubectlConfig, _ := testAccProvider.Meta().(*KubectlConfig)
+		config := testAccProvider.Meta().(*Config)
+		kubectlConfig, _ := NewKubectlConfig(config)
 
 		res := &KubectlResponse{}
 		var attempts int
@@ -251,10 +255,13 @@ func testManifestResourceItemsExistWithLabel(kind, label, namespace string,
 			k8sSelflink := res.Items[0].Metadata.Selflink
 
 			if tfUID != k8sUID {
-				return fmt.Errorf("Expected uid %s [TF STATE} found %s [K8S]", tfUID, k8sUID)
+				return fmt.Errorf(
+					"Expected uid %s [TF STATE} found %s [K8S]", tfUID, k8sUID)
 			}
 			if tfSelflink != k8sSelflink {
-				return fmt.Errorf("Expected selflink %s [TF STATE} found %s [K8S]", tfSelflink, k8sSelflink)
+				return fmt.Errorf(
+					"Expected selflink %s [TF STATE} found %s [K8S]",
+					tfSelflink, k8sSelflink)
 			}
 		}
 		return nil

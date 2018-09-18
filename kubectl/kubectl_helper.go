@@ -65,7 +65,12 @@ func NewKubectlConfig(m interface{}) (*KubectlConfig, error) {
 	kubeconfig := m.(*Config).Kubeconfig
 	kubecontext := m.(*Config).Kubecontext
 
-	return &KubectlConfig{kubeconfig, kubecontent, kubecontext, cleanup}, err
+	return &KubectlConfig{
+		Kubeconfig:  kubeconfig,
+		Kubecontent: kubecontent,
+		Kubecontext: kubecontext,
+		toCleanup:   cleanup,
+	}, err
 }
 
 type CLICommand struct {
@@ -89,4 +94,62 @@ func (c *CLICommand) RunCommand() error {
 		return fmt.Errorf("%s %v: %s", cmdStr, err, stderr.Bytes())
 	}
 	return nil
+}
+
+type CLICommandFactory struct {
+	KubectlConfig *KubectlConfig
+}
+
+func (c *CLICommandFactory) CreateGetByHandleCommand(
+	resourceHandle, namespace string, stdout *bytes.Buffer) *CLICommand {
+
+	args := []string{"get", "--ignore-not-found", resourceHandle}
+	if namespace != "" {
+		args = append(args, "-n", namespace)
+	}
+
+	args = c.KubectlConfig.RenderArgs(args...)
+	getCommand := NewCLICommand("kubectl", args...)
+	getCommand.Stdout = stdout
+	return getCommand
+}
+
+func (c *CLICommandFactory) CreateGetByManifestCommand(
+	resourceManifest, namespace string, stdout *bytes.Buffer) *CLICommand {
+
+	args := c.KubectlConfig.RenderArgs("get", "-f", "-", "-o", "json")
+	if namespace != "" {
+		args = append(args, "-n", namespace)
+	}
+	getCommand := NewCLICommand("kubectl", args...)
+	getCommand.Stdin = strings.NewReader(resourceManifest)
+	getCommand.Stdout = stdout
+	return getCommand
+}
+
+func (c *CLICommandFactory) CreateApplyManifestCommand(
+	manifestResource, namespace string) *CLICommand {
+
+	args := c.KubectlConfig.RenderArgs("apply", "-f", "-")
+	if namespace != "" {
+		args = append(args, "-n", namespace)
+	}
+	applyCommand := NewCLICommand("kubectl", args...)
+	applyCommand.Stdin = strings.NewReader(manifestResource)
+	return applyCommand
+}
+
+func (c *CLICommandFactory) CreateDeleteByHandleCommand(
+	resourceHandle, namespace string) *CLICommand {
+
+	args := []string{"delete", resourceHandle}
+
+	args = c.KubectlConfig.RenderArgs(args...)
+	if namespace != "" {
+		args = append(args, "-n", namespace)
+	}
+
+	deleteCommand := NewCLICommand("kubectl", args...)
+	deleteCommand.Stdin = strings.NewReader(resourceHandle)
+	return deleteCommand
 }

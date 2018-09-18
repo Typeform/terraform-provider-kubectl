@@ -42,6 +42,21 @@ func (k *KubectlConfig) RenderArgs(args ...string) []string {
 	return args
 }
 
+func (k *KubectlConfig) InitializeConfiguration() error {
+	var kubeconfig string
+	var err error
+
+	if k.Kubecontent != "" {
+		kubeconfig, err = createTempfile(k.Kubecontent)
+	}
+	if kubeconfig != "" {
+		k.toCleanup = true
+		k.Kubeconfig = kubeconfig
+	}
+
+	return err
+}
+
 func NewKubectlConfig(m interface{}) (*KubectlConfig, error) {
 	var err error
 
@@ -49,13 +64,6 @@ func NewKubectlConfig(m interface{}) (*KubectlConfig, error) {
 	kubecontent := m.(*Config).Kubecontent
 	kubeconfig := m.(*Config).Kubeconfig
 	kubecontext := m.(*Config).Kubecontext
-
-	if kubeconfig == "" && kubecontent != "" {
-		kubeconfig, err = createTempfile(kubecontent)
-		if kubeconfig != "" {
-			cleanup = true
-		}
-	}
 
 	return &KubectlConfig{kubeconfig, kubecontent, kubecontext, cleanup}, err
 }

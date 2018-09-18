@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 
 	"github.com/Typeform/terraform-provider-kubectl/kubectl/resource"
 	"github.com/hashicorp/terraform/helper/schema"
@@ -85,7 +86,17 @@ func HashResource(v interface{}) int {
 //		5. adds the created resources to the terraform state
 func resourceManifestCreate(d *schema.ResourceData, m interface{}) error {
 
-	kubectlCLIConfig := m.(*KubectlConfig)
+	config := m.(*Config)
+
+	kubectlCLIConfig, err := NewKubectlConfig(config)
+	if err != nil {
+		return fmt.Errorf(
+			"error while processing kubeconfig file: %s", err,
+		)
+	}
+	kubectlCLIConfig.InitializeConfiguration()
+	defer kubectlCLIConfig.Cleanup()
+
 	var namespace string
 
 	if nm, ok := d.GetOk("namespace"); ok {
@@ -121,7 +132,17 @@ func resourceManifestCreate(d *schema.ResourceData, m interface{}) error {
 //
 func resourceManifestUpdate(d *schema.ResourceData, m interface{}) error {
 
-	kubectlCLIConfig := m.(*KubectlConfig)
+	config := m.(*Config)
+
+	kubectlCLIConfig, err := NewKubectlConfig(config)
+	if err != nil {
+		return fmt.Errorf(
+			"error while processing kubeconfig file: %s", err,
+		)
+	}
+	kubectlCLIConfig.InitializeConfiguration()
+	defer kubectlCLIConfig.Cleanup()
+
 	if d.HasChange("content") {
 
 		var namespace string
@@ -163,10 +184,19 @@ func resourceManifestUpdate(d *schema.ResourceData, m interface{}) error {
 //	for each of the retrieved resources:
 //	- delete the resource
 func resourceManifestDelete(d *schema.ResourceData, m interface{}) error {
-	kubectlCLIConfig := m.(*KubectlConfig)
+	config := m.(*Config)
+
+	kubectlCLIConfig, err := NewKubectlConfig(config)
+	if err != nil {
+		return fmt.Errorf(
+			"error while processing kubeconfig file: %s", err,
+		)
+	}
+	kubectlCLIConfig.InitializeConfiguration()
+	defer kubectlCLIConfig.Cleanup()
 
 	toDelete := d.Get("resources").(*schema.Set)
-	err := deleteResources(toDelete, kubectlCLIConfig)
+	err = deleteResources(toDelete, kubectlCLIConfig)
 	return err
 }
 
@@ -178,56 +208,103 @@ func resourceManifestDelete(d *schema.ResourceData, m interface{}) error {
 // - if the intersaction is empty sets resource id to "" (will force create)
 func resourceManifestRead(d *schema.ResourceData, m interface{}) error {
 
-	kubectlCLIConfig := m.(*KubectlConfig)
+	config := m.(*Config)
 
-	tfResources := d.Get("resources").(*schema.Set)
-	tfResourcesList := tfResources.List()
-
-	kubectlResources := schema.NewSet(HashResource, []interface{}{})
-
-	for _, tfResource := range tfResourcesList {
-
-		resourceObj, ok := tfResource.(map[string]interface{})
-		if !ok {
-			return fmt.Errorf("error converting resource map\n")
-		}
-		selflink, ok := resourceObj["selflink"].(string)
-		if !ok {
-			return fmt.Errorf("error converting resource selflink into string\n")
-		}
-		resource, namespace, ok := resourceFromSelflink(selflink)
-		if !ok {
-			return fmt.Errorf("invalid resource id: %s", selflink)
-		}
-		args := []string{"get", "--ignore-not-found", resource}
-		if namespace != "" {
-			args = append(args, "-n", namespace)
-		}
-
-		stdout := &bytes.Buffer{}
-
-		args = kubectlCLIConfig.RenderArgs(args...)
-		getCommand := NewCLICommand("kubectl", args...)
-		getCommand.Stdout = stdout
-		if err := getCommand.RunCommand(); err != nil {
-			return err
-		}
-		if strings.TrimSpace(stdout.String()) != "" {
-			kubectlResources.Add(tfResource)
-		}
+	kubectlCLIConfig, err := NewKubectlConfig(config)
+	if err != nil {
+		return fmt.Errorf(
+			"error while processing kubeconfig file: %s", err,
+		)
 	}
+	kubectlCLIConfig.InitializeConfiguration()
+	defer kubectlCLIConfig.Cleanup()
 
-	commonResources := setIntersection(tfResources, kubectlResources)
+	log.Printf("[DEBUG] start refreshing object %s", d.Get("name").(string))
 
-	err := d.Set("resources", commonResources)
+	commonResources, err := getTfResourcesInK8s(kubectlCLIConfig, d)
+
+	err = d.Set("resources", commonResources)
 	if err != nil {
 		return err
 	}
 	if commonResources.Len() < 1 {
 		d.SetId("")
 	}
+	log.Printf("[DEBUG] done refreshing object %s", d.Get("name").(string))
 
 	return nil
+}
+
+func getTfResourcesInK8s(kubectlCLIConfig *KubectlConfig, d *schema.ResourceData) (
+	*schema.Set, error) {
+
+	tfResources := d.Get("resources").(*schema.Set)
+	tfResourcesList := tfResources.List()
+	kubectlResources := schema.NewSet(HashResource, []interface{}{})
+
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(tfResourcesList))
+	resChan := make(chan interface{}, len(tfResourcesList))
+
+	for _, tfResource := range tfResourcesList {
+		wg.Add(1)
+		go func(tfResource interface{}) {
+			defer wg.Done()
+			readResource(kubectlCLIConfig, tfResource, resChan, errChan)
+		}(tfResource)
+	}
+
+	wg.Wait()
+	close(errChan)
+	close(resChan)
+	for routineErr := range errChan {
+		return nil, routineErr
+	}
+	for routineResource := range resChan {
+		kubectlResources.Add(routineResource)
+	}
+	commonResources := setIntersection(tfResources, kubectlResources)
+	return commonResources, nil
+}
+
+func readResource(kubectlCLIConfig *KubectlConfig, tfResource interface{},
+	resChan chan<- interface{}, errChan chan<- error) {
+
+	resourceObj, ok := tfResource.(map[string]interface{})
+	if !ok {
+		errChan <- fmt.Errorf("error converting resource map\n")
+		return
+	}
+	selflink, ok := resourceObj["selflink"].(string)
+	if !ok {
+		errChan <- fmt.Errorf("error converting resource selflink into string\n")
+		return
+	}
+	resource, namespace, ok := resourceFromSelflink(selflink)
+	if !ok {
+		errChan <- fmt.Errorf("invalid resource id: %s", selflink)
+		return
+	}
+	log.Printf("[DEBUG] start refreshing resource %s in namespace", resource, namespace)
+
+	args := []string{"get", "--ignore-not-found", resource}
+	if namespace != "" {
+		args = append(args, "-n", namespace)
+	}
+
+	stdout := &bytes.Buffer{}
+
+	args = kubectlCLIConfig.RenderArgs(args...)
+	getCommand := NewCLICommand("kubectl", args...)
+	getCommand.Stdout = stdout
+	if err := getCommand.RunCommand(); err != nil {
+		errChan <- err
+		return
+	}
+	if strings.TrimSpace(stdout.String()) != "" {
+		resChan <- tfResource
+	}
+	log.Printf("[DEBUG] end refreshing resource %s in namespace", resource, namespace)
 }
 
 // Tries to fetch at least one of the resources contained in the state.
@@ -236,7 +313,16 @@ func resourceManifestRead(d *schema.ResourceData, m interface{}) error {
 // terraform state is also present in k8s
 func resourceManifestExists(d *schema.ResourceData, m interface{}) (bool, error) {
 
-	kubectlCLIConfig := m.(*KubectlConfig)
+	config := m.(*Config)
+
+	kubectlCLIConfig, err := NewKubectlConfig(config)
+	if err != nil {
+		return false, fmt.Errorf(
+			"error while processing kubeconfig file: %s", err,
+		)
+	}
+	kubectlCLIConfig.InitializeConfiguration()
+	defer kubectlCLIConfig.Cleanup()
 
 	tfResources := d.Get("resources").(*schema.Set)
 	tfResourcesList := tfResources.List()

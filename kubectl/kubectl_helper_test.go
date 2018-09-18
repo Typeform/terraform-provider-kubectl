@@ -27,6 +27,8 @@ var _ = Describe("KubectlHelper", func() {
 				filepath = "/home/user/.kube/config"
 				config = &Config{Kubeconfig: filepath}
 				kubectlConfig, err = NewKubectlConfig(config)
+				kubectlConfig.InitializeConfiguration()
+				kubectlConfig.Cleanup()
 
 				Expect(err).To(BeNil())
 			})
@@ -53,6 +55,7 @@ var _ = Describe("KubectlHelper", func() {
 				base64Content := "VGhpcyBpcyBhIHRlc3QgY29udGVudA==" //"This is a test content"
 				config = &Config{Kubecontent: base64Content}
 				kubectlConfig, err = NewKubectlConfig(config)
+				kubectlConfig.InitializeConfiguration()
 
 				Expect(err).To(BeNil())
 			})
@@ -63,7 +66,6 @@ var _ = Describe("KubectlHelper", func() {
 
 				_, err := os.Stat(kubectlConfig.Kubeconfig)
 				Expect(err).To(BeNil())
-
 				kubectlConfig.Cleanup()
 
 				_, err = os.Stat(kubectlConfig.Kubeconfig)

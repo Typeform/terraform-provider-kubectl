@@ -1,8 +1,6 @@
 package kubectl
 
 import (
-	"fmt"
-
 	"github.com/hashicorp/terraform/helper/schema"
 )
 
@@ -37,14 +35,7 @@ func Provider() *schema.Provider {
 				Kubecontent: d.Get("kubecontent").(string),
 				Kubecontext: d.Get("kubecontext").(string),
 			}
-			kubectlCLIConfig, err := NewKubectlConfig(config)
-			if err != nil {
-				return nil, fmt.Errorf(
-					"error while processing kubeconfig file: %s", err,
-				)
-			}
-			defer kubectlCLIConfig.Cleanup()
-			return kubectlCLIConfig, nil
+			return config, nil
 		},
 	}
 }

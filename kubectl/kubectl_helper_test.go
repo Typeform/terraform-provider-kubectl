@@ -39,10 +39,6 @@ var _ = Describe("KubectlHelper", func() {
 				Expect(kubectlConfig.Kubeconfig).To(Equal(filepath))
 				Expect(kubectlConfig.Kubecontent).To(Equal(""))
 			})
-
-			It("Should need clean up", func() {
-				Expect(kubectlConfig.ShouldCleanUp()).To(BeFalse())
-			})
 		})
 
 		Context("When only kubecontent parameter is set", func() {
@@ -73,11 +69,6 @@ var _ = Describe("KubectlHelper", func() {
 				_, err = os.Stat(kubectlConfig.Kubeconfig)
 				Expect(os.IsNotExist(err)).To(BeTrue())
 			})
-
-			It("Needs cleaning up", func() {
-				Expect(kubectlConfig.ShouldCleanUp()).To(BeTrue())
-			})
-
 		})
 
 		Context("When neither parameters are set", func() {
@@ -97,10 +88,6 @@ var _ = Describe("KubectlHelper", func() {
 
 			It("should not set any kubeconfig path", func() {
 				Expect(kubectlConfig.Kubeconfig).To(Equal(""))
-			})
-
-			It("Should not clean up", func() {
-				Expect(kubectlConfig.ShouldCleanUp()).To(BeFalse())
 			})
 		})
 	})

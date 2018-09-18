@@ -24,25 +24,20 @@ func createTempfile(base64Content string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
 	tmpfile, err := ioutil.TempFile(os.TempDir(), "kubeconfig_")
 	if err != nil {
 		return "", err
 	}
-
 	tempFilePath, err := filepath.Abs(tmpfile.Name())
 	if err != nil {
 		return "", err
 	}
-
 	if _, err := tmpfile.Write(content); err != nil {
 		return tempFilePath, err
 	}
-
 	if err := tmpfile.Close(); err != nil {
 		return tempFilePath, err
 	}
-
 	return tempFilePath, nil
 }
 
@@ -58,13 +53,9 @@ func ReadFile(path string) (string, error) {
 	var text = make([]byte, 1024)
 	for {
 		_, err = file.Read(text)
-
-		// break if finally arrived at end of file
 		if err == io.EOF {
 			break
 		}
-
-		// break if error occured
 		if err != nil && err != io.EOF {
 			break
 		}

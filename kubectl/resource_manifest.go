@@ -93,7 +93,6 @@ func resourceManifestCreate(d *schema.ResourceData, m interface{}) error {
 	if err != nil {
 		return fmt.Errorf("error while processing kubeconfig file: %s", err)
 	}
-	kubectlCLIConfig.InitializeConfiguration()
 	defer kubectlCLIConfig.Cleanup()
 
 	if nm, ok := d.GetOk("namespace"); ok {
@@ -135,7 +134,6 @@ func resourceManifestUpdate(d *schema.ResourceData, m interface{}) error {
 	if err != nil {
 		return fmt.Errorf("error while processing kubeconfig file: %s", err)
 	}
-	kubectlCLIConfig.InitializeConfiguration()
 	defer kubectlCLIConfig.Cleanup()
 
 	if d.HasChange("content") {
@@ -185,7 +183,6 @@ func resourceManifestDelete(d *schema.ResourceData, m interface{}) error {
 	if err != nil {
 		return fmt.Errorf("error while processing kubeconfig file: %s", err)
 	}
-	kubectlCLIConfig.InitializeConfiguration()
 	defer kubectlCLIConfig.Cleanup()
 
 	toDelete := d.Get("resources").(*schema.Set)
@@ -207,7 +204,6 @@ func resourceManifestRead(d *schema.ResourceData, m interface{}) error {
 	if err != nil {
 		return fmt.Errorf("error while processing kubeconfig file: %s", err)
 	}
-	kubectlCLIConfig.InitializeConfiguration()
 	defer kubectlCLIConfig.Cleanup()
 
 	log.Printf("[DEBUG] start refreshing object %s", d.Get("name").(string))
@@ -319,7 +315,6 @@ func resourceManifestExists(d *schema.ResourceData, m interface{}) (bool, error)
 			"error while processing kubeconfig file: %s", err,
 		)
 	}
-	kubectlCLIConfig.InitializeConfiguration()
 	defer kubectlCLIConfig.Cleanup()
 
 	tfResources := d.Get("resources").(*schema.Set)

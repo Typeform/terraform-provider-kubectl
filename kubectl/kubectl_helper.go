@@ -14,13 +14,9 @@ type KubectlConfig struct {
 	toCleanup   bool
 }
 
-func (k *KubectlConfig) ShouldCleanUp() bool {
-	return k.toCleanup
-}
-
 func (k *KubectlConfig) Cleanup() error {
 
-	if k.ShouldCleanUp() {
+	if k.toCleanup {
 		if err := deleteFile(k.Kubeconfig); err != nil {
 			errorString := `Cleanup operation on temporary file failed with error %s.
 			Plese make sure (if it exists) that the file %s is manually removed.`
@@ -48,29 +44,30 @@ func (k *KubectlConfig) InitializeConfiguration() error {
 
 	if k.Kubecontent != "" {
 		kubeconfig, err = createTempfile(k.Kubecontent)
+		k.toCleanup = true
 	}
 	if kubeconfig != "" {
-		k.toCleanup = true
 		k.Kubeconfig = kubeconfig
 	}
-
 	return err
 }
 
 func NewKubectlConfig(m interface{}) (*KubectlConfig, error) {
 	var err error
 
-	cleanup := false
 	kubecontent := m.(*Config).Kubecontent
 	kubeconfig := m.(*Config).Kubeconfig
 	kubecontext := m.(*Config).Kubecontext
 
-	return &KubectlConfig{
+	kubectlConfig := &KubectlConfig{
 		Kubeconfig:  kubeconfig,
 		Kubecontent: kubecontent,
 		Kubecontext: kubecontext,
-		toCleanup:   cleanup,
-	}, err
+		toCleanup:   false,
+	}
+
+	err = kubectlConfig.InitializeConfiguration()
+	return kubectlConfig, err
 }
 
 type CLICommand struct {

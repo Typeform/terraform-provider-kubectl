@@ -18,8 +18,9 @@ func Provider() *schema.Provider {
 				Optional: true,
 			},
 			"kubecontent": &schema.Schema{
-				Type:     schema.TypeString,
-				Optional: true,
+				Type:          schema.TypeString,
+				Optional:      true,
+				ConflictsWith: []string{"kubeconfig"},
 			},
 			"kubecontext": &schema.Schema{
 				Type:     schema.TypeString,

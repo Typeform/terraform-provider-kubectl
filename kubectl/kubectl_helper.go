@@ -100,7 +100,7 @@ type CLICommandFactory struct {
 func (c *CLICommandFactory) CreateGetByHandleCommand(
 	resourceHandle, namespace string, stdout *bytes.Buffer) *CLICommand {
 
-	args := []string{"get", "--ignore-not-found", resourceHandle}
+	args := []string{"get", "--ignore-not-found=true", resourceHandle}
 	if namespace != "" {
 		args = append(args, "-n", namespace)
 	}
@@ -139,7 +139,7 @@ func (c *CLICommandFactory) CreateApplyManifestCommand(
 func (c *CLICommandFactory) CreateDeleteByHandleCommand(
 	resourceHandle, namespace string) *CLICommand {
 
-	args := []string{"delete", resourceHandle}
+	args := []string{"delete", "--ignore-not-found=true", resourceHandle}
 
 	args = c.KubectlConfig.RenderArgs(args...)
 	if namespace != "" {

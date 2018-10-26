@@ -100,10 +100,10 @@ var _ = Describe("CLICommandFactory", func() {
 
 		Context("When kubeconfig parameter is set", func() {
 
-			expectedGetByHandle := "kubectl --kubeconfig /home/user/.kube/config get --ignore-not-found /v2/myresourceHandle -n test"
+			expectedGetByHandle := "kubectl --kubeconfig /home/user/.kube/config get --ignore-not-found=true /v2/myresourceHandle -n test"
 			expectedGetByManifest := "kubectl --kubeconfig /home/user/.kube/config get -f - -o json -n test"
 			expectedStdin := "---\napiVersion: v1\nkind: Namespace\n  metadata:\n  name: acceptance-test"
-			expectedDeleteByHandle := "kubectl --kubeconfig /home/user/.kube/config delete /v2/myResource -n test"
+			expectedDeleteByHandle := "kubectl --kubeconfig /home/user/.kube/config delete --ignore-not-found=true /v2/myResource -n test"
 			expectedApplyManifest := "kubectl --kubeconfig /home/user/.kube/config apply -f - -n test"
 			var (
 				filepath       string

@@ -208,10 +208,19 @@ func resourceManifestRead(d *schema.ResourceData, m interface{}) error {
 
 	log.Printf("[DEBUG] start refreshing object %s", d.Get("name").(string))
 
-	commonResources, err := getTfResourcesFromK8s(kubectlCLIConfig, d)
+	commonResources, errs := getTfResourcesFromK8s(kubectlCLIConfig, d)
+
+	// TODO: make sure to differentiate the kind of errors and abort only when they
+	//       mean that the resource does not exist
+	if len(errs) != 0 {
+		for _, k8sErr := range errs {
+			log.Printf("[DEBUG] Error while refreshing resources from K8s %s", k8sErr)
+		}
+	}
 
 	err = d.Set("resources", commonResources)
 	if err != nil {
+		log.Printf("[DEBUG] Error while refreshing resources %s", err)
 		return err
 	}
 	if commonResources.Len() < 1 {
@@ -223,7 +232,9 @@ func resourceManifestRead(d *schema.ResourceData, m interface{}) error {
 }
 
 func getTfResourcesFromK8s(kubectlCLIConfig *KubectlConfig, d *schema.ResourceData) (
-	*schema.Set, error) {
+	*schema.Set, []error) {
+
+	errs := make([]error, 0)
 
 	tfResources := d.Get("resources").(*schema.Set)
 	tfResourcesList := tfResources.List()
@@ -255,13 +266,14 @@ func getTfResourcesFromK8s(kubectlCLIConfig *KubectlConfig, d *schema.ResourceDa
 	closeOnce.Do(closeChannels)
 
 	for routineErr := range errChan {
-		return nil, routineErr
+		errs = append(errs, routineErr)
 	}
 	for routineResource := range resChan {
 		kubectlResources.Add(routineResource)
 	}
+
 	commonResources := setIntersection(tfResources, kubectlResources)
-	return commonResources, nil
+	return commonResources, errs
 }
 
 func readResource(kubectlCLIConfig *KubectlConfig, tfResource interface{},
@@ -282,7 +294,7 @@ func readResource(kubectlCLIConfig *KubectlConfig, tfResource interface{},
 		errChan <- fmt.Errorf("invalid resource id: %s", selflink)
 		return
 	}
-	log.Printf("[DEBUG] start refreshing resource %s in namespace",
+	log.Printf("[DEBUG] start refreshing resource %s in namespace %s",
 		resourceHandle, namespace)
 
 	stdout := &bytes.Buffer{}
@@ -294,10 +306,11 @@ func readResource(kubectlCLIConfig *KubectlConfig, tfResource interface{},
 		errChan <- err
 		return
 	}
+
 	if strings.TrimSpace(stdout.String()) != "" {
 		resChan <- tfResource
 	}
-	log.Printf("[DEBUG] end refreshing resource %s in namespace",
+	log.Printf("[DEBUG] end refreshing resource %s in namespace %s",
 		resourceHandle, namespace)
 }
 

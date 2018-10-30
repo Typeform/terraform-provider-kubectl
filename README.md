@@ -23,7 +23,7 @@ TF_ACC=1 go test kubectl/resource_*_test.go -v  -timeout 180m
 by default they rely on a local `minikube` deployment. The kubernetes cluster endpoint is adjustable by configuring the following env variables:
 
 -  TP_KUBECTL_KUBECONFIG, default:  "˜/.kube/config"
--  TP_KUBECTL_KUBECONTEXT", default: "minikube"
+-  TP_KUBECTL_KUBECONTEXT, default: "minikube"
 
 ## Usage
 
